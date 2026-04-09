@@ -1,0 +1,63 @@
+import requests
+import os
+from datetime import datetime
+
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+CHAT_ID = os.environ.get('CHAT_ID')
+TWELVE_DATA_KEY = os.environ.get('TWELVE_DATA_KEY')
+
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    try:
+        r = requests.post(url, json={"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}, timeout=30)
+        print(f"Status: {r.status_code}")
+        if r.status_code == 200:
+            print("✅ Message sent to Telegram!")
+        else:
+            print(f"❌ Failed: {r.text}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+def get_price():
+    try:
+        url = f"https://api.twelvedata.com/price?symbol=EUR/USD&apikey={TWELVE_DATA_KEY}"
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        if "price" in data:
+            return float(data["price"])
+        else:
+            print(f"API Error: {data}")
+            return None
+    except Exception as e:
+        print(f"Price error: {e}")
+        return None
+
+print("="*50)
+print("🤖 CONDREYBOT STARTING")
+print("="*50)
+
+# Test Telegram connection first
+send_telegram("✅ *CondreyBot is starting on GitHub Actions!*")
+
+# Get price
+price = get_price()
+
+if price:
+    message = f"""
+🤖 *CONDREYBOT - LIVE*
+
+📊 EUR/USD: `{price:.5f}`
+🕐 Time: `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`
+
+✅ Bot running successfully on GitHub Actions!
+📈 Monitoring market for SMC signals...
+"""
+    send_telegram(message)
+    print(f"✅ Price sent: {price}")
+else:
+    send_telegram("❌ *Error:* Could not fetch price")
+    print("❌ Failed to get price")
+
+print("="*50)
+print("✅ CondreyBot finished")
+print("="*50)
