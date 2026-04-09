@@ -1,0 +1,120 @@
+import requests
+import time
+from datetime datetime
+
+# ============================================
+# YOUR API KEYS
+# ============================================
+BOT_TOKEN = "8778556986:AAFvTX2gXhJsksIDa3ZSrx4B4dEo3brvGdo"
+CHAT_ID = "8618943322"
+TWELVE_DATA_KEY = "0c5fa895d807422181b086fb2c22e553"
+# ============================================
+
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    try:
+        requests.post(url, json={"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}, timeout=30)
+        print("✅ Sent")
+    except:
+        pass
+
+def get_price():
+    try:
+        url = f"https://api.twelvedata.com/price?symbol=EUR/USD&apikey={TWELVE_DATA_KEY}"
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        return float(data["price"]) if "price" in data else None
+    except:
+        return None
+
+def calculate_ema(prices, period):
+    if len(prices) < period:
+        return None
+    multiplier = 2 / (period + 1)
+    ema = sum(prices[:period]) / period
+    for price in prices[period:]:
+        ema = (price - ema) * multiplier + ema
+    return ema
+
+def analyze_smc(prices):
+    if len(prices) < 30:
+        return None
+    
+    ema_20 = calculate_ema(prices, 20)
+    ema_50 = calculate_ema(prices, 50)
+    
+    if ema_20 and ema_50:
+        if ema_20 > ema_50:
+            trend = "BULLISH"
+            strength = "STRONG" if (ema_20 - ema_50) / ema_50 * 100 >= 0.1 else "WEAK"
+        else:
+            trend = "BEARISH"
+            strength = "STRONG" if (ema_50 - ema_20) / ema_50 * 100 >= 0.1 else "WEAK"
+    else:
+        trend = "NEUTRAL"
+        strength = "WEAK"
+    
+    return {"trend": trend, "strength": strength, "price": prices[-1]}
+
+def run_bot():
+    print("🤖 CondreyBot starting...")
+    
+    prices = []
+    last_price = None
+    
+    while True:
+        try:
+            current = get_price()
+            
+            if current:
+                prices.append(current)
+                if len(prices) > 100:
+                    prices = prices[-100:]
+                
+                analysis = analyze_smc(prices)
+                
+                if analysis and analysis["strength"] == "STRONG":
+                    if last_price:
+                        pips = (current - last_price) * 10000
+                        
+                        if pips > 0:
+                            signal = "🟢 BUY"
+                            sl = current - 0.0020
+                            tp = current + 0.0040
+                        elif pips < 0:
+                            signal = "🔴 SELL"
+                            sl = current + 0.0020
+                            tp = current - 0.0040
+                        else:
+                            signal = "⏸️ HOLD"
+                            sl = tp = current
+                        
+                        if signal != "⏸️ HOLD":
+                            message = f"""
+🚨 *SMC SIGNAL* 🚨
+
+📊 EUR/USD: `{current:.5f}`
+📈 Signal: `{signal}`
+📉 Trend: `{analysis['trend']}` ({analysis['strength']})
+📊 Movement: `{pips:+.1f}` pips
+
+✅ Action: `{signal.split()[1]}`
+🛑 SL: `{sl:.5f}` (20 pips)
+🎯 TP: `{tp:.5f}` (40 pips)
+
+🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+                            send_telegram(message)
+                            print(f"Signal sent: {signal} @ {current}")
+                
+                last_price = current
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] EUR/USD: {current:.5f}")
+            
+            time.sleep(60)
+            
+        except Exception as e:
+            print(f"Error: {e}")
+            time.sleep(60)
+
+if __name__ == "__main__":
+    run_bot()
